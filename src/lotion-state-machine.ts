@@ -20,7 +20,7 @@ interface CheckResponse {
 export interface StateMachine {
   initialize(initialState?, initialInfo?): void | Promise<void>
   transition(action)
-  check?(action): Promise<boolean | CheckResponse> | boolean | CheckResponse
+  check?(action)
   query(query?)
   info?()
   commit(): string | Buffer | Promise<string | Buffer>
@@ -73,31 +73,59 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
     },
     compile(): StateMachine {
       let appState = opts.initialState
-      let chainInfo
+      let mempoolState = muta(appState)
 
-      let nextState
-      let nextInfo
+      let nextState, nextInfo
+      let chainInfo, mempoolInfo
 
       function applyTx(state, tx, info) {
         /**
-         * state might be the raw app state, the mempool state, or a wrapper of the mempool state.
+         * wrap the state and info for this one tx.
+         * try applying this transaction.
+         * if an error is thrown, transaction is invalid.
+         * if neither wrapper is mutated, transaction is invalid.
+         * if the transaction is invalid, rollback any mutations.
          */
-        transactionHandlers.forEach(m => m(state, tx, info))
+        let txState = muta(state)
+        let txInfo = muta(info)
+        try {
+          transactionHandlers.forEach(m => m(txState, tx, txInfo))
+          /**
+           * tx was applied without error.
+           * now make sure something was mutated.
+           */
+          if (wasMutated(txState) || wasMutated(txInfo)) {
+            /**
+             * valid tx.
+             * commit wrappers back to their sources.
+             */
+            muta.commit(txState)
+            muta.commit(txInfo)
+            return {}
+          } else {
+            throw new Error(
+              'transaction must mutate state or validators to be valid'
+            )
+          }
+        } catch (e) {
+          /**
+           * tx error.
+           * invalid, don't mutate state.
+           */
+          throw e
+        }
       }
 
       return {
         initialize(initialState, initialInfo) {
           chainInfo = initialInfo
+          mempoolInfo = muta(chainInfo)
           Object.assign(appState, initialState)
           initializers.forEach(m => m(appState))
         },
         transition(action: Action) {
           if (action.type === 'transaction') {
-            let txState = muta(nextState)
-            let txInfo = muta(nextInfo)
-            applyTx(txState, action.data, txInfo)
-            muta.commit(txState)
-            muta.commit(txInfo)
+            applyTx(nextState, action.data, nextInfo)
           } else if (action.type === 'block') {
             /**
              * end block.
@@ -105,7 +133,6 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
              * compute validator set updates.
              */
             blockHandlers.forEach(m => m(nextState, nextInfo))
-            muta.commit(nextInfo)
           } else if (action.type === 'begin-block') {
             /**
              * begin block.
@@ -113,54 +140,28 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
              * also set timestamp.
              */
             chainInfo.time = action.data.time
-            nextInfo = muta(chainInfo)
             nextState = muta(appState)
+            nextInfo = muta(chainInfo)
           }
         },
 
         commit() {
+          /**
+           * reset mempool state/info on commit
+           */
           muta.commit(nextState)
+          muta.commit(nextInfo)
+
+          mempoolState = muta(appState)
+          mempoolInfo = muta(chainInfo)
+
           return createHash('sha256')
             .update(djson.stringify(appState))
             .digest('hex')
         },
 
         check(tx) {
-          /**
-           * wrap the mempool state and info for this one tx.
-           * try applying this transaction.
-           * if an error is thrown, transaction is invalid.
-           * if neither wrapper is mutated, transaction is invalid.
-           * if the transaction is invalid, rollback any mutations.
-           */
-          let mempoolTxState = muta(nextState)
-          let mempoolTxInfo = muta(nextInfo)
-          try {
-            applyTx(mempoolTxState, tx, mempoolTxInfo)
-            /**
-             * tx was applied without error.
-             * now make sure something was mutated.
-             */
-            if (wasMutated(mempoolTxState) || wasMutated(mempoolTxInfo)) {
-              /**
-               * valid tx.
-               * commit mempooltx wrappers back to their sources.
-               */
-              muta.commit(mempoolTxState)
-              muta.commit(mempoolTxInfo)
-              return {}
-            } else {
-              throw new Error(
-                'transaction must mutate state or validators to be valid'
-              )
-            }
-          } catch (e) {
-            /**
-             * tx error.
-             * invalid, don't mutate mempool state.
-             */
-            throw e
-          }
+          applyTx(mempoolState, tx, mempoolInfo)
         },
 
         query(path) {
