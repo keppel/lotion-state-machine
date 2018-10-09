@@ -84,7 +84,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       let router = Router(routes)
       appMethods.use(router)
 
-      let appState = opts.initialState
+      let appState = opts.initialState || {}
       let mempoolState = muta(appState)
 
       let nextState, nextInfo
