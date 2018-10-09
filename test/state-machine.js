@@ -83,7 +83,7 @@ test('error on unknown transition type', (t) => {
     lsm.transition({ type: 'foo' })
     t.fail()
   } catch (err) {
-    t.equals(err.message, 'Unknown transition type "foo"')
+    t.equals(err.message, 'Invalid transition: type=foo prev=initialize')
   }
 
   t.end()
@@ -215,6 +215,38 @@ test('check does not have side effects on query state', (t) => {
   expected = 0
   lsm.check({})
   t.equals(lsm.query().x, 0)
+
+  t.end()
+})
+
+test('enforce transition order', (t) => {
+  let app = LotionStateMachine({})
+
+  app.useTx((state, tx, info) => {
+    state.x += 1
+  })
+
+  let lsm = app.compile()
+
+  try {
+    lsm.transition({ type: 'begin-block', data: {} })
+    t.fail()
+  } catch (err) {
+    t.equals(err.message, 'Invalid transition: type=begin-block prev=none')
+  }
+
+  lsm.initialize({ x: 0 }, {})
+  lsm.transition({ type: 'begin-block', data: {} })
+
+  try {
+    lsm.transition({ type: 'commit', data: {} })
+    t.fail()
+  } catch (err) {
+    t.equals(err.message, 'Invalid transition: type=commit prev=begin-block')
+  }
+
+  lsm.transition({ type: 'block', data: {} })
+  lsm.commit()
 
   t.end()
 })
