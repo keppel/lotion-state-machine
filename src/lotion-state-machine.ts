@@ -32,11 +32,10 @@ export type BlockHandler = (state, info?) => any
 export type Initializer = (state, info?) => any
 
 export interface Application {
-  use(txHandler: TransactionHandler | Middleware | Middleware[])
+  use(txHandler: TransactionHandler | Middleware | Middleware[] | string, route?: TransactionHandler | Middleware | Middleware[])
   useTx(txHandler: TransactionHandler)
   useBlock(blockHandler: BlockHandler)
   useInitializer(initializer: Initializer)
-  route(routeName: string, middleware: TransactionHandler | Middleware | Middleware[])
   compile?(): StateMachine
 }
 
@@ -48,11 +47,24 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
   let transactionHandlers = []
   let initializers = []
   let blockHandlers = []
-  let routes = {}
+  let routes
 
   let appMethods = {
-    use(middleware) {
-      if (middleware instanceof Array) {
+    use(middleware, route?) {
+      if (typeof middleware === 'string') {
+        if (routes == null) {
+          routes = {}
+        }
+
+        let routeName = middleware
+        if (routeName in routes) {
+          throw Error(`Route "${routeName}" already exists`)
+        }
+        if (route == null) {
+          throw Error('Expected middleware for route')
+        }
+        routes[routeName] = route
+      } if (middleware instanceof Array) {
         middleware.forEach(appMethods.use)
       } else if (typeof middleware === 'function') {
         appMethods.useTx(middleware)
@@ -74,15 +86,11 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
     useInitializer(initializer) {
       initializers.push(initializer)
     },
-    route(routeName, middleware) {
-      if (routeName in routes) {
-        throw Error(`Route "${routeName}" already exists`)
-      }
-      routes[routeName] = middleware
-    },
     compile(): StateMachine {
-      let router = Router(routes)
-      appMethods.use(router)
+      if (routes != null) {
+        let router = Router(routes)
+        appMethods.use(router)
+      }
 
       let appState = opts.initialState || {}
       let mempoolState = muta(appState)
