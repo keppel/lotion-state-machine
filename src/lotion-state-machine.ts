@@ -44,6 +44,17 @@ export interface BaseApplicationConfig {
   initialState: object
 }
 
+// defines an FSM to ensure state machine transitions
+// are called in the proper order
+const validTransitions = {
+  'none': new Set([ 'initialize' ]),
+  'initialize': new Set([ 'begin-block' ]),
+  'begin-block': new Set([ 'transaction', 'block' ]),
+  'transaction': new Set([ 'transaction', 'block' ]),
+  'block': new Set([ 'commit' ]),
+  'commit': new Set([ 'begin-block' ])
+}
+
 function LotionStateMachine(opts: BaseApplicationConfig): Application {
   let transactionHandlers = []
   let initializers = []
@@ -101,6 +112,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       let nextState, nextInfo
       let chainInfo, mempoolInfo
 
+      let prevOp = 'none'
+
       function applyTx(state, tx, info) {
         /**
          * wrap the state and info for this one tx.
@@ -139,14 +152,26 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         }
       }
 
+      // check FSM to ensure consumer is transitioning us in the right order
+      function checkTransition (type) {
+        let valid = validTransitions[prevOp].has(type)
+        if (!valid) {
+          throw Error(`Invalid transition: type=${type} prev=${prevOp}`)
+        }
+        prevOp = type
+      }
+
       return {
         initialize(initialState, initialInfo) {
+          checkTransition('initialize')
           chainInfo = initialInfo
           mempoolInfo = muta(chainInfo)
           Object.assign(appState, initialState)
           initializers.forEach(m => m(appState))
         },
         transition(action: Action) {
+          checkTransition(action.type)
+
           if (action.type === 'transaction') {
             applyTx(nextState, action.data, nextInfo)
           } else if (action.type === 'block') {
@@ -165,12 +190,12 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
             chainInfo.time = action.data.time
             nextState = muta(appState)
             nextInfo = muta(chainInfo)
-          } else {
-            throw Error(`Unknown transition type "${action.type}"`)
           }
         },
 
         commit() {
+          checkTransition('commit')
+
           /**
            * reset mempool state/info on commit
            */
