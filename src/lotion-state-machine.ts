@@ -32,7 +32,8 @@ export type BlockHandler = (state, info?) => any
 export type Initializer = (state, info?) => any
 
 export interface Application {
-  use(txHandler: TransactionHandler | Middleware | Middleware[] | string, route?: TransactionHandler | Middleware | Middleware[])
+  use(txHandler: TransactionHandler | Middleware | Middleware[])
+  use(txHandler: string, route: TransactionHandler | Middleware | Middleware[])
   useTx(txHandler: TransactionHandler)
   useBlock(blockHandler: BlockHandler)
   useInitializer(initializer: Initializer)
