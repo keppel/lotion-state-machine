@@ -74,6 +74,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         appMethods.useBlock(middleware.middleware)
       } else if (middleware.type === 'initializer') {
         appMethods.useInitializer(middleware.middleware)
+      } else {
+        throw Error('Unknown middleware type')
       }
       return appMethods
     },
