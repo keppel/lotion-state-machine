@@ -64,7 +64,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           throw Error('Expected middleware for route')
         }
         routes[routeName] = route
-      } if (middleware instanceof Array) {
+      } else if (middleware instanceof Array) {
         middleware.forEach(appMethods.use)
       } else if (typeof middleware === 'function') {
         appMethods.useTx(middleware)
@@ -164,6 +164,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
             chainInfo.time = action.data.time
             nextState = muta(appState)
             nextInfo = muta(chainInfo)
+          } else {
+            throw Error(`Unknown transition type "${action.type}"`)
           }
         },
 
