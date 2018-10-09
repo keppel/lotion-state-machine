@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import djson = require('deterministic-json')
 import muta = require('muta')
+import Router = require('lotion-router')
 
 interface Action {
   type: string
@@ -35,6 +36,7 @@ export interface Application {
   useTx(txHandler: TransactionHandler)
   useBlock(blockHandler: BlockHandler)
   useInitializer(initializer: Initializer)
+  route(routeName: string, middleware: TransactionHandler | Middleware | Middleware[])
   compile?(): StateMachine
 }
 
@@ -46,6 +48,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
   let transactionHandlers = []
   let initializers = []
   let blockHandlers = []
+  let routes = {}
 
   let appMethods = {
     use(middleware) {
@@ -71,7 +74,16 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
     useInitializer(initializer) {
       initializers.push(initializer)
     },
+    route(routeName, middleware) {
+      if (routeName in routes) {
+        throw Error(`Route "${routeName}" already exists`)
+      }
+      routes[routeName] = middleware
+    },
     compile(): StateMachine {
+      let router = Router(routes)
+      appMethods.use(router)
+
       let appState = opts.initialState
       let mempoolState = muta(appState)
 
