@@ -147,7 +147,7 @@ test('check has side effects on mempool validators', (t) => {
   expected = 1
   lsm.check({})
 
-  t.equals(lsm.validators().y, 0)
+  t.equals(lsm.context().validators.y, 0)
 
   t.end()
 })

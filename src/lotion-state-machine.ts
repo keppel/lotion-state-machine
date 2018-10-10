@@ -23,7 +23,7 @@ export interface StateMachine {
   transition(action)
   check?(action)
   query(query?)
-  validators?()
+  context?()
   commit(): string | Buffer | Promise<string | Buffer>
 }
 
@@ -226,8 +226,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           return appState
         },
 
-        validators() {
-          return chainValidators
+        context() {
+          return nextContext
         }
       }
     }
