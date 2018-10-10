@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import djson = require('deterministic-json')
 import muta = require('muta')
+import Router = require('lotion-router')
 
 interface Action {
   type: string
@@ -32,6 +33,7 @@ export type Initializer = (state, info?) => any
 
 export interface Application {
   use(txHandler: TransactionHandler | Middleware | Middleware[])
+  use(txHandler: string, route: TransactionHandler | Middleware | Middleware[])
   useTx(txHandler: TransactionHandler)
   useBlock(blockHandler: BlockHandler)
   useInitializer(initializer: Initializer)
@@ -42,14 +44,39 @@ export interface BaseApplicationConfig {
   initialState: object
 }
 
+// defines an FSM to ensure state machine transitions
+// are called in the proper order
+const validTransitions = {
+  'none': new Set([ 'initialize' ]),
+  'initialize': new Set([ 'begin-block' ]),
+  'begin-block': new Set([ 'transaction', 'block' ]),
+  'transaction': new Set([ 'transaction', 'block' ]),
+  'block': new Set([ 'commit' ]),
+  'commit': new Set([ 'begin-block' ])
+}
+
 function LotionStateMachine(opts: BaseApplicationConfig): Application {
   let transactionHandlers = []
   let initializers = []
   let blockHandlers = []
+  let routes
 
   let appMethods = {
-    use(middleware) {
-      if (middleware instanceof Array) {
+    use(middleware, route?) {
+      if (typeof middleware === 'string') {
+        if (routes == null) {
+          routes = {}
+        }
+
+        let routeName = middleware
+        if (routeName in routes) {
+          throw Error(`Route "${routeName}" already exists`)
+        }
+        if (route == null) {
+          throw Error('Expected middleware for route')
+        }
+        routes[routeName] = route
+      } else if (middleware instanceof Array) {
         middleware.forEach(appMethods.use)
       } else if (typeof middleware === 'function') {
         appMethods.useTx(middleware)
@@ -59,6 +86,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         appMethods.useBlock(middleware.middleware)
       } else if (middleware.type === 'initializer') {
         appMethods.useInitializer(middleware.middleware)
+      } else {
+        throw Error('Unknown middleware type')
       }
       return appMethods
     },
@@ -72,11 +101,18 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       initializers.push(initializer)
     },
     compile(): StateMachine {
-      let appState = opts.initialState
+      if (routes != null) {
+        let router = Router(routes)
+        appMethods.use(router)
+      }
+
+      let appState = opts.initialState || {}
       let mempoolState = muta(appState)
 
       let nextState, nextInfo
       let chainInfo, mempoolInfo
+
+      let prevOp = 'none'
 
       function applyTx(state, tx, info) {
         /**
@@ -116,14 +152,26 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         }
       }
 
+      // check FSM to ensure consumer is transitioning us in the right order
+      function checkTransition (type) {
+        let valid = validTransitions[prevOp].has(type)
+        if (!valid) {
+          throw Error(`Invalid transition: type=${type} prev=${prevOp}`)
+        }
+        prevOp = type
+      }
+
       return {
         initialize(initialState, initialInfo) {
+          checkTransition('initialize')
           chainInfo = initialInfo
           mempoolInfo = muta(chainInfo)
           Object.assign(appState, initialState)
           initializers.forEach(m => m(appState))
         },
         transition(action: Action) {
+          checkTransition(action.type)
+
           if (action.type === 'transaction') {
             applyTx(nextState, action.data, nextInfo)
           } else if (action.type === 'block') {
@@ -146,6 +194,8 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         },
 
         commit() {
+          checkTransition('commit')
+
           /**
            * reset mempool state/info on commit
            */

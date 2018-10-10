@@ -19,29 +19,33 @@ test('counter app', t => {
   let lsm = app.compile()
   let state, hash
 
-  lsm.initialize({ initialState: { count: -10, blockCount: 0 } })
+  lsm.initialize({ count: -10, blockCount: 0 }, {})
   state = lsm.query()
 
   t.equal(state.count, 0)
 
+  lsm.transition({ type: 'begin-block', data: { time: 100 } })
   lsm.transition({ type: 'transaction', data: { foo: 'bar' } })
   lsm.transition({ type: 'transaction', data: { foo: 'bar' } })
   lsm.transition({ type: 'transaction', data: { foo: 'bar' } })
+  lsm.transition({ type: 'block', data: {} })
+  lsm.commit()
 
   state = lsm.query()
   t.equal(state.count, 3)
+  t.equal(state.blockCount, 1)
 
+  lsm.transition({ type: 'begin-block', data: { time: 200 } })
   lsm.transition({ type: 'block', data: {} })
-  lsm.transition({ type: 'block', data: {} })
-
-  state = lsm.query()
-  t.equal(state.blockCount, 2)
-
   hash = lsm.commit()
   t.equal(
     hash,
-    '71a80bf842c594d39f4d214a8d81b25fefeb190b7f538a59a15094929b37c83b'
+    '8353f3a8b718e3ac9661f9bee86e0b5cfe0115b797101c40cf002e974800e148'
   )
+
+  state = lsm.query()
+  t.equal(state.count, 3)
+  t.equal(state.blockCount, 2)
 
   t.end()
 })
