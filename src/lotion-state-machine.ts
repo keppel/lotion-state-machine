@@ -19,17 +19,17 @@ interface CheckResponse {
 }
 
 export interface StateMachine {
-  initialize(initialState?, initialInfo?): void | Promise<void>
+  initialize(initialState?, initialContext?): void | Promise<void>
   transition(action)
   check?(action)
   query(query?)
-  info?()
+  validators?()
   commit(): string | Buffer | Promise<string | Buffer>
 }
 
-export type TransactionHandler = (state, tx, info?) => any
-export type BlockHandler = (state, info?) => any
-export type Initializer = (state, info?) => any
+export type TransactionHandler = (state, tx, context?) => any
+export type BlockHandler = (state, context?) => any
+export type Initializer = (state, context?) => any
 
 export interface Application {
   use(txHandler: TransactionHandler | Middleware | Middleware[])
@@ -109,34 +109,35 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       let appState = opts.initialState || {}
       let mempoolState = muta(appState)
 
-      let nextState, nextInfo
-      let chainInfo, mempoolInfo
+      let nextState, nextValidators, nextContext
+      let chainValidators, mempoolValidators, mempoolContext
 
       let prevOp = 'none'
 
-      function applyTx(state, tx, info) {
+      function applyTx(state, tx, context) {
         /**
-         * wrap the state and info for this one tx.
+         * wrap the state and context for this one tx.
          * try applying this transaction.
          * if an error is thrown, transaction is invalid.
          * if neither wrapper is mutated, transaction is invalid.
          * if the transaction is invalid, rollback any mutations.
          */
         let txState = muta(state)
-        let txInfo = muta(info)
+        let txValidators = muta(context.validators)
+        context = Object.assign({}, context, { validators: txValidators })
         try {
-          transactionHandlers.forEach(m => m(txState, tx, txInfo))
+          transactionHandlers.forEach(m => m(txState, tx, context))
           /**
            * tx was applied without error.
            * now make sure something was mutated.
            */
-          if (wasMutated(txState) || wasMutated(txInfo)) {
+          if (wasMutated(txState) || wasMutated(txValidators)) {
             /**
              * valid tx.
              * commit wrappers back to their sources.
              */
             muta.commit(txState)
-            muta.commit(txInfo)
+            muta.commit(txValidators)
             return {}
           } else {
             throw new Error(
@@ -162,34 +163,38 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       }
 
       return {
-        initialize(initialState, initialInfo) {
+        initialize(initialState, initialContext = {}) {
           checkTransition('initialize')
-          chainInfo = initialInfo
-          mempoolInfo = muta(chainInfo)
+          nextContext = initialContext
+          chainValidators = initialContext.validators || {}
+          mempoolValidators = muta(chainValidators)
           Object.assign(appState, initialState)
+          // TODO: should this get the initial context?
           initializers.forEach(m => m(appState))
         },
         transition(action: Action) {
           checkTransition(action.type)
 
           if (action.type === 'transaction') {
-            applyTx(nextState, action.data, nextInfo)
+            applyTx(nextState, action.data, nextContext)
           } else if (action.type === 'block') {
             /**
              * end block.
              * apply block handlers.
              * compute validator set updates.
              */
-            blockHandlers.forEach(m => m(nextState, nextInfo))
+            blockHandlers.forEach(m => m(nextState, nextContext))
           } else if (action.type === 'begin-block') {
             /**
              * begin block.
              * reset mempool state.
              * also set timestamp.
              */
-            chainInfo.time = action.data.time
             nextState = muta(appState)
-            nextInfo = muta(chainInfo)
+            nextValidators = muta(chainValidators)
+            nextContext = Object.assign({}, action.data, {
+              validators: nextValidators
+            })
           }
         },
 
@@ -197,13 +202,13 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           checkTransition('commit')
 
           /**
-           * reset mempool state/info on commit
+           * reset mempool state/ctx on commit
            */
           muta.commit(nextState)
-          muta.commit(nextInfo)
+          muta.commit(nextValidators)
 
           mempoolState = muta(appState)
-          mempoolInfo = muta(chainInfo)
+          mempoolValidators = muta(chainValidators)
 
           return createHash('sha256')
             .update(djson.stringify(appState))
@@ -211,15 +216,18 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         },
 
         check(tx) {
-          applyTx(mempoolState, tx, mempoolInfo)
+          let context = Object.assign({}, nextContext, {
+            validators: mempoolValidators,
+          })
+          applyTx(mempoolState, tx, context)
         },
 
         query(path) {
           return appState
         },
 
-        info() {
-          return chainInfo
+        validators() {
+          return chainValidators
         }
       }
     }
