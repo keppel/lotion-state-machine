@@ -80,14 +80,28 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         middleware.forEach(appMethods.use)
       } else if (typeof middleware === 'function') {
         appMethods.useTx(middleware)
-      } else if (middleware.type === 'tx') {
-        appMethods.useTx(middleware.middleware)
-      } else if (middleware.type === 'block') {
-        appMethods.useBlock(middleware.middleware)
-      } else if (middleware.type === 'initializer') {
-        appMethods.useInitializer(middleware.middleware)
+      } else if (middleware.type != null) {
+        // type/middleware object
+        if (middleware.type === 'tx') {
+          appMethods.useTx(middleware.middleware)
+        } else if (middleware.type === 'block') {
+          appMethods.useBlock(middleware.middleware)
+        } else if (middleware.type === 'initializer') {
+          appMethods.useInitializer(middleware.middleware)
+        } else {
+          throw Error('Unknown middleware type')
+        }
       } else {
-        throw Error('Unknown middleware type')
+        // object module
+        if (middleware.transactionHandlers) {
+          middleware.transactionHandlers.forEach((h) => appMethods.useTx(h))
+        }
+        if (middleware.blockHandlers) {
+          middleware.blockHandlers.forEach((h) => appMethods.useBlock(h))
+        }
+        if (middleware.initializers) {
+          middleware.initializers.forEach((h) => appMethods.useInitializer(h))
+        }
       }
       return appMethods
     },
