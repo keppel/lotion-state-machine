@@ -1,6 +1,6 @@
 {
   "name": "lotion-state-machine",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "description": "",
   "main": "dist/lotion-state-machine.js",
   "scripts": {
