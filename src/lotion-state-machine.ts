@@ -93,14 +93,14 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
         }
       } else {
         // object module
-        if (middleware.txHandler) {
-          appMethods.useTx(middleware.txHandler)
+        if (middleware.transactionHandlers) {
+          middleware.transactionHandlers.forEach((h) => appMethods.useTx(h))
         }
-        if (middleware.blockHandler) {
-          appMethods.useBlock(middleware.blockHandler)
+        if (middleware.blockHandlers) {
+          middleware.blockHandlers.forEach((h) => appMethods.useBlock(h))
         }
-        if (middleware.initializer) {
-          appMethods.useInitializer(middleware.initializer)
+        if (middleware.initializers) {
+          middleware.initializers.forEach((h) => appMethods.useInitializer(h))
         }
       }
       return appMethods
