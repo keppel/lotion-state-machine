@@ -19,7 +19,7 @@ interface CheckResponse {
 }
 
 export interface StateMachine {
-  initialize(initialState?, initialContext?): void | Promise<void>
+  initialize(initialState?, initialContext?, resuming?): void | Promise<void>
   transition(action)
   check?(action)
   query(query?)
@@ -177,13 +177,15 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       }
 
       return {
-        initialize(initialState, initialContext = {}) {
+        initialize(initialState, initialContext = {}, resuming = false) {
           checkTransition('initialize')
           nextContext = initialContext
           chainValidators = initialContext.validators || {}
           mempoolValidators = muta(chainValidators)
           Object.assign(appState, initialState)
-          initializers.forEach(m => m(appState, nextContext))
+          if (!resuming) {
+            initializers.forEach(m => m(appState, nextContext))
+          }
         },
         transition(action: Action) {
           checkTransition(action.type)
