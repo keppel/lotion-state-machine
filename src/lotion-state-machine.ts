@@ -183,8 +183,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           chainValidators = initialContext.validators || {}
           mempoolValidators = muta(chainValidators)
           Object.assign(appState, initialState)
-          // TODO: should this get the initial context?
-          initializers.forEach(m => m(appState))
+          initializers.forEach(m => m(appState, nextContext))
         },
         transition(action: Action) {
           checkTransition(action.type)
