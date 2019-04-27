@@ -224,10 +224,6 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
 
           mempoolState = muta(appState)
           mempoolValidators = muta(chainValidators)
-
-          return createHash('sha256')
-            .update(djson.stringify(appState))
-            .digest('hex')
         },
 
         check(tx) {
