@@ -154,7 +154,7 @@ test('check has side effects on mempool validators', (t) => {
 
 test('check does not have side effects on committed state', (t) => {
   let state = {}
-  let app = LotionStateMachine({ initialState: state })
+  let app = LotionStateMachine({})
 
   let expected
   app.useTx((state, tx, ctx) => {
@@ -162,7 +162,7 @@ test('check does not have side effects on committed state', (t) => {
     state.x += 1
   })
 
-  let lsm = app.compile()
+  let lsm = app.compile(state)
   lsm.initialize({ x: 0 }, {})
 
   expected = 0
@@ -181,7 +181,7 @@ test('check does not have side effects on committed state', (t) => {
 
 test('check does not have side effects on transition state', (t) => {
   let state = {}
-  let app = LotionStateMachine({ initialState: state })
+  let app = LotionStateMachine({})
 
   let expected
   app.useTx((state, tx, ctx) => {
@@ -189,7 +189,7 @@ test('check does not have side effects on transition state', (t) => {
     state.x += 1
   })
 
-  let lsm = app.compile()
+  let lsm = app.compile(state)
   lsm.initialize({ x: 0 }, {})
 
   expected = 0
