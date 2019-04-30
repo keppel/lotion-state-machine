@@ -24,7 +24,7 @@ export interface StateMachine {
   check?(action)
   query(query?)
   context?()
-  commit(): string | Buffer | Promise<string | Buffer>
+  commit()
 }
 
 export type TransactionHandler = (state, tx, context?) => any
@@ -37,7 +37,7 @@ export interface Application {
   useTx(txHandler: TransactionHandler)
   useBlock(blockHandler: BlockHandler)
   useInitializer(initializer: Initializer)
-  compile?(): StateMachine
+  compile?(state: object): StateMachine
 }
 
 export interface BaseApplicationConfig {
@@ -114,13 +114,14 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
     useInitializer(initializer) {
       initializers.push(initializer)
     },
-    compile(): StateMachine {
+    compile(appState = {}): StateMachine {
       if (routes != null) {
         let router = Router(routes)
         appMethods.use(router)
       }
 
-      let appState = opts.initialState || {}
+      let initialState = opts.initialState || {}
+      Object.assign(appState, initialState)
       let mempoolState = muta(appState)
 
       let nextState, nextValidators, nextContext
