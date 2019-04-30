@@ -37,11 +37,7 @@ test('counter app', t => {
 
   lsm.transition({ type: 'begin-block', data: { time: 200 } })
   lsm.transition({ type: 'block', data: {} })
-  hash = lsm.commit()
-  t.equal(
-    hash,
-    '8353f3a8b718e3ac9661f9bee86e0b5cfe0115b797101c40cf002e974800e148'
-  )
+  lsm.commit()
 
   state = lsm.query()
   t.equal(state.count, 3)
