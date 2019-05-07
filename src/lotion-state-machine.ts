@@ -47,12 +47,12 @@ export interface BaseApplicationConfig {
 // defines an FSM to ensure state machine transitions
 // are called in the proper order
 const validTransitions = {
-  'none': new Set([ 'initialize' ]),
-  'initialize': new Set([ 'begin-block' ]),
-  'begin-block': new Set([ 'transaction', 'block' ]),
-  'transaction': new Set([ 'transaction', 'block' ]),
-  'block': new Set([ 'commit' ]),
-  'commit': new Set([ 'begin-block' ])
+  none: new Set(['initialize']),
+  initialize: new Set(['begin-block']),
+  'begin-block': new Set(['transaction', 'block']),
+  transaction: new Set(['transaction', 'block']),
+  block: new Set(['commit']),
+  commit: new Set(['begin-block'])
 }
 
 function LotionStateMachine(opts: BaseApplicationConfig): Application {
@@ -94,13 +94,13 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       } else {
         // object module
         if (middleware.transactionHandlers) {
-          middleware.transactionHandlers.forEach((h) => appMethods.useTx(h))
+          middleware.transactionHandlers.forEach(h => appMethods.useTx(h))
         }
         if (middleware.blockHandlers) {
-          middleware.blockHandlers.forEach((h) => appMethods.useBlock(h))
+          middleware.blockHandlers.forEach(h => appMethods.useBlock(h))
         }
         if (middleware.initializers) {
-          middleware.initializers.forEach((h) => appMethods.useInitializer(h))
+          middleware.initializers.forEach(h => appMethods.useInitializer(h))
         }
       }
       return appMethods
@@ -169,7 +169,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
       }
 
       // check FSM to ensure consumer is transitioning us in the right order
-      function checkTransition (type) {
+      function checkTransition(type) {
         let valid = validTransitions[prevOp].has(type)
         if (!valid) {
           throw Error(`Invalid transition: type=${type} prev=${prevOp}`)
@@ -182,7 +182,9 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
           checkTransition('initialize')
           nextContext = initialContext
           chainValidators = initialContext.validators || {}
+          chainValidators = protectValidators(chainValidators)
           mempoolValidators = muta(chainValidators)
+          mempoolValidators = protectValidators(mempoolValidators)
           Object.assign(appState, initialState)
           if (!resuming) {
             initializers.forEach(m => m(appState, nextContext))
@@ -229,7 +231,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
 
         check(tx) {
           let context = Object.assign({}, nextContext, {
-            validators: mempoolValidators,
+            validators: mempoolValidators
           })
           applyTx(mempoolState, tx, context)
         },
@@ -246,6 +248,19 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
   }
 
   return appMethods
+}
+
+function protectValidators(validators) {
+  return new Proxy(validators, {
+    set(target, prop: string, value) {
+      console.log(prop)
+      console.log(Buffer.from(prop, 'base64').length)
+      if (Buffer.from(prop, 'base64').length !== 32) {
+        throw new Error('Invalid validator public key length')
+      }
+      return Reflect.set(target, prop, value)
+    }
+  })
 }
 
 function wasMutated(wrapper): boolean {

@@ -3,7 +3,7 @@
 const test = require('tape')
 const LotionStateMachine = require('..').default
 
-test('initialize state assigned to initialState', (t) => {
+test('initialize state assigned to initialState', t => {
   let app = LotionStateMachine({ initialState: { x: 2, y: 2 } })
   app.useTx((state, tx, ctx) => {
     t.equals(state.x, 0)
@@ -21,7 +21,7 @@ test('initialize state assigned to initialState', (t) => {
   t.end()
 })
 
-test('initialState is optional', (t) => {
+test('initialState is optional', t => {
   let app = LotionStateMachine({})
   app.useTx((state, tx, ctx) => {
     t.equals(state.x, 0)
@@ -38,7 +38,7 @@ test('initialState is optional', (t) => {
   t.end()
 })
 
-test('tx must mutate state or validators', (t) => {
+test('tx must mutate state or validators', t => {
   let app = LotionStateMachine({})
   app.useTx((state, tx, ctx) => {})
 
@@ -49,13 +49,16 @@ test('tx must mutate state or validators', (t) => {
     lsm.transition({ type: 'transaction', data: { value: 10 } })
     t.fail()
   } catch (err) {
-    t.equals(err.message, 'transaction must mutate state or validators to be valid')
+    t.equals(
+      err.message,
+      'transaction must mutate state or validators to be valid'
+    )
   }
 
   t.end()
 })
 
-test('tx not valid if it mutates non-validators property of ctx', (t) => {
+test('tx not valid if it mutates non-validators property of ctx', t => {
   let app = LotionStateMachine({})
   app.useTx((state, tx, ctx) => {
     ctx.y += 1
@@ -68,16 +71,19 @@ test('tx not valid if it mutates non-validators property of ctx', (t) => {
     lsm.transition({ type: 'transaction', data: { value: 10 } })
     t.fail()
   } catch (err) {
-    t.equals(err.message, 'transaction must mutate state or validators to be valid')
+    t.equals(
+      err.message,
+      'transaction must mutate state or validators to be valid'
+    )
   }
 
   t.end()
 })
 
-test('tx valid if it mutates validators', (t) => {
+test('tx valid if it mutates validators', t => {
   let app = LotionStateMachine({})
   app.useTx((state, tx, ctx) => {
-    ctx.validators.foo = 1
+    ctx.validators['aOSx00CgYJ3/WGNgioJEs91irUHNvy+bV20hRTby7ak='] = 1
   })
 
   let lsm = app.compile()
@@ -90,7 +96,7 @@ test('tx valid if it mutates validators', (t) => {
   t.end()
 })
 
-test('error on unknown transition type', (t) => {
+test('error on unknown transition type', t => {
   let app = LotionStateMachine({})
   app.useTx((state, tx, ctx) => {
     ctx.y += 1
@@ -108,7 +114,7 @@ test('error on unknown transition type', (t) => {
   t.end()
 })
 
-test('check has side effects on mempool state', (t) => {
+test('check has side effects on mempool state', t => {
   let app = LotionStateMachine({})
 
   let expected
@@ -129,17 +135,23 @@ test('check has side effects on mempool state', (t) => {
   t.end()
 })
 
-test('check has side effects on mempool validators', (t) => {
+test('check has side effects on mempool validators', t => {
   let app = LotionStateMachine({})
 
   let expected
   app.useTx((state, tx, ctx) => {
-    t.equals(ctx.validators.y, expected)
-    ctx.validators.y += 1
+    t.equals(
+      ctx.validators['aOSx00CgYJ3/WGNgioJEs91irUHNvy+bV20hRTby7ak='],
+      expected
+    )
+    ctx.validators['aOSx00CgYJ3/WGNgioJEs91irUHNvy+bV20hRTby7ak='] += 1
   })
 
   let lsm = app.compile()
-  lsm.initialize({}, { validators: { y: 0 } })
+  lsm.initialize(
+    {},
+    { validators: { 'aOSx00CgYJ3/WGNgioJEs91irUHNvy+bV20hRTby7ak=': 0 } }
+  )
 
   expected = 0
   lsm.check({})
@@ -147,12 +159,15 @@ test('check has side effects on mempool validators', (t) => {
   expected = 1
   lsm.check({})
 
-  t.equals(lsm.context().validators.y, 0)
+  t.equals(
+    lsm.context().validators['aOSx00CgYJ3/WGNgioJEs91irUHNvy+bV20hRTby7ak='],
+    0
+  )
 
   t.end()
 })
 
-test('check does not have side effects on committed state', (t) => {
+test('check does not have side effects on committed state', t => {
   let state = {}
   let app = LotionStateMachine({})
 
@@ -179,7 +194,7 @@ test('check does not have side effects on committed state', (t) => {
   t.end()
 })
 
-test('check does not have side effects on transition state', (t) => {
+test('check does not have side effects on transition state', t => {
   let state = {}
   let app = LotionStateMachine({})
 
@@ -210,7 +225,7 @@ test('check does not have side effects on transition state', (t) => {
   t.end()
 })
 
-test('check does not have side effects on query state', (t) => {
+test('check does not have side effects on query state', t => {
   let state = {}
   let app = LotionStateMachine({ initialState: state })
 
@@ -238,7 +253,7 @@ test('check does not have side effects on query state', (t) => {
   t.end()
 })
 
-test('enforce transition order', (t) => {
+test('enforce transition order', t => {
   let app = LotionStateMachine({})
 
   app.useTx((state, tx, ctx) => {
