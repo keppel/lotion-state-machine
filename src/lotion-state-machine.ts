@@ -139,6 +139,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
          */
         let txState = muta(state)
         let txValidators = muta(context.validators)
+        txValidators = protectValidators(txValidators)
         context = Object.assign({}, context, { validators: txValidators })
         try {
           transactionHandlers.forEach(m => m(txState, tx, context))
@@ -210,6 +211,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
              */
             nextState = muta(appState)
             nextValidators = muta(chainValidators)
+            nextValidators = protectValidators(nextValidators)
             nextContext = Object.assign({}, action.data, {
               validators: nextValidators
             })
@@ -227,6 +229,7 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
 
           mempoolState = muta(appState)
           mempoolValidators = muta(chainValidators)
+          mempoolValidators = protectValidators(mempoolValidators)
         },
 
         check(tx) {
@@ -253,8 +256,6 @@ function LotionStateMachine(opts: BaseApplicationConfig): Application {
 function protectValidators(validators) {
   return new Proxy(validators, {
     set(target, prop: string, value) {
-      console.log(prop)
-      console.log(Buffer.from(prop, 'base64').length)
       if (Buffer.from(prop, 'base64').length !== 32) {
         throw new Error('Invalid validator public key length')
       }
